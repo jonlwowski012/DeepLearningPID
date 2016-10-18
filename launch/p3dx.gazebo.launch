@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="robot_name" default="p3dx" />
+  <arg name="robot_position" default="-x 0.0 -y 0.0 -z 0.01" />
+  <arg name="use_ground_truth_for_tf" default="true"/>
+    
+  <group ns="$(arg robot_name)">
+
+    <!-- Load the URDF into the ROS Parameter Server -->
+    <param name="robot_description" command="$(find xacro)/xacro.py '$(find DeepLearningPID)/xacro/p3dx/pioneer3dx.xacro'" />
+  
+    <!-- Run a python script to the send a service call to gazebo_ros to spawn a URDF robot -->
+    <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen" args="-urdf -model $(arg robot_name) -param robot_description $(arg robot_position) "/>
+
+   <!-- publish state and tf -->
+   <node name="pose_estimation" pkg="hector_quadrotor_pose_estimation" type="hector_quadrotor_pose_estimation" output="screen">
+       <rosparam file="$(find hector_quadrotor_pose_estimation)/params/simulation.yaml" />
+       <param name="nav_frame" value="$(arg robot_name)/odom" />
+       <param name="publish_world_nav_transform" value="true" />
+       <param name="tf_prefix" value="$(arg robot_name)" unless="$(arg use_ground_truth_for_tf)" />
+       <param name="tf_prefix" value="$(arg robot_name)/pose_estimation" if="$(arg use_ground_truth_for_tf)" />
+   </node>
+   
+</group>
+
+</launch>

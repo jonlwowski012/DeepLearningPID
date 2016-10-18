@@ -1,0 +1,361 @@
+#!/usr/bin/env python
+
+# Quadrotor Simulator
+# Jonathan Lwowski 
+# Email: jonathan.lwowski@gmail.com
+# Unmanned Systems Lab
+# The University of Texas at San Antonio
+
+
+#########          Libraries         ###################
+import sys
+from std_msgs.msg import String
+from std_msgs.msg import Header
+import rospy
+import math
+import numpy as np
+import time
+import random
+from gazebo_msgs.msg import ModelStates
+from geometry_msgs.msg import PoseArray
+from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import Quaternion
+from sklearn import cluster
+from gazebo_msgs.srv import SpawnModel
+from gazebo_msgs.srv import DeleteModel
+import matplotlib.pyplot as plt
+from sklearn import cluster
+from sklearn.decomposition import PCA
+
+### Functions to Find Smalled Bounding Circle  ###
+
+def make_circle(points):
+    # Convert to float and randomize order
+    shuffled = [(float(p[0]), float(p[1])) for p in points]
+ 
+    
+    # Progressively add points to circle or recompute circle
+    c = None
+    for (i, p) in enumerate(shuffled):
+        if c is None or not _is_in_circle(c, p):
+            c = _make_circle_one_point(shuffled[0 : i + 1], p)
+    return c
+
+
+# One boundary point known
+def _make_circle_one_point(points, p):
+    c = (p[0], p[1], 0.0)
+    for (i, q) in enumerate(points):
+        if not _is_in_circle(c, q):
+            if c[2] == 0.0:
+                c = _make_diameter(p, q)
+            else:
+                c = _make_circle_two_points(points[0 : i + 1], p, q)
+    return c
+
+
+# Two boundary points known
+def _make_circle_two_points(points, p, q):
+    diameter = _make_diameter(p, q)
+    if all(_is_in_circle(diameter, r) for r in points):
+        return diameter
+    
+    left = None
+    right = None
+    for r in points:
+        cross = _cross_product(p[0], p[1], q[0], q[1], r[0], r[1])
+        c = _make_circumcircle(p, q, r)
+        if c is None:
+            continue
+        elif cross > 0.0 and (left is None or _cross_product(p[0], p[1], q[0], q[1], c[0], c[1]) > _cross_product(p[0], p[1], q[0], q[1], left[0], left[1])):
+            left = c
+        elif cross < 0.0 and (right is None or _cross_product(p[0], p[1], q[0], q[1], c[0], c[1]) < _cross_product(p[0], p[1], q[0], q[1], right[0], right[1])):
+            right = c
+    return left if (right is None or (left is not None and left[2] <= right[2])) else right
+
+
+def _make_circumcircle(p0, p1, p2):
+    # Mathematical algorithm from Wikipedia: Circumscribed circle
+    ax = p0[0]; ay = p0[1]
+    bx = p1[0]; by = p1[1]
+    cx = p2[0]; cy = p2[1]
+    d = (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)) * 2.0
+    if d == 0.0:
+        return None
+    x = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d
+    y = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d
+    return (x, y, math.hypot(x - ax, y - ay))
+
+
+def _make_diameter(p0, p1):
+    return ((p0[0] + p1[0]) / 2.0, (p0[1] + p1[1]) / 2.0, math.hypot(p0[0] - p1[0], p0[1] - p1[1]) / 2.0)
+
+
+_EPSILON = 1e-12
+
+def _is_in_circle(c, p):
+    return c is not None and math.hypot(p[0] - c[0], p[1] - c[1]) < c[2] + _EPSILON
+
+
+# Returns twice the signed area of the triangle defined by (x0, y0), (x1, y1), (x2, y2)
+def _cross_product(x0, y0, x1, y1, x2, y2):
+    return (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0)
+
+
+
+def peoplelocationCallback1(data):
+	global people_location_array
+	people_location_array = data.poses
+		
+	#print people_location_array	
+
+def distance(p0x,p0y, p1x, p1y):
+    return math.sqrt((p0x - p1x)**2 + (p0y - p1y)**2)	
+
+
+def people_location_sub1():
+	rospy.Subscriber("/people_locations_combined", PoseArray, peoplelocationCallback1) 
+
+class Boat:
+	def __init__(self,capacity,speed,x,y):
+		self.capacity = capacity
+		self.speed = speed
+		self.x = x
+		self.y = y
+
+class Cluster:
+	def __init__(self,x,y,people,label):
+		self.people = people
+		self.label = label
+		self.x = x
+		self.y = y
+
+class Metacluster:
+	def __init__(self,x,y,label,people):
+		self.clusters = []
+		self.label = label
+		self.x = x
+		self.y = y
+		self.people = people
+	def addCluster(self,cluster):
+		self.cluster.append(cluster)
+
+
+    
+if __name__ == '__main__':
+	rospy.init_node('graph', anonymous=True)
+
+	### Number of people to spawn in world
+	number_people = 500
+	number_boats = 5
+	boats = []
+
+	#boats.append(Boat(random.uniform(10,150), random.uniform(.2,1.0), -70,-50))
+	#boats.append(Boat(random.uniform(10,150), random.uniform(.2,1.0), -70,-40))
+	#boats.append(Boat(random.uniform(10,150), random.uniform(.2,1.0), -70,-30))
+	#boats.append(Boat(random.uniform(10,150), random.uniform(.2,1.0), -60,-40))
+	#boats.append(Boat(random.uniform(10,150), random.uniform(.2,1.0), -60,-30))
+	for i in range(number_boats):
+		temp_boat = Boat(random.uniform(10,150), random.uniform(.2,1.0), random.uniform(-50,50),random.uniform(-50,50))
+		boats.append(temp_boat)
+	
+	### Init variables
+	people_location_array = []
+
+	### Spawn models randomly 
+	while(number_people >= 0):
+		pose = Pose()
+		pose.position.x = random.uniform(-50,50)
+		pose.position.y = random.uniform(-25,25)
+		pose.position.z = 0.5
+		pose.orientation.x = 0
+		pose.orientation.y = 0
+		pose.orientation.z = 0
+		pose.orientation.w = 1
+		number_people = number_people -1
+		people_location_array.append(pose)
+	try:
+		while(1):
+			if(people_location_array != []):
+
+				### Store people locations into array   ###
+				people = [(people_location_array[0].position.x,people_location_array[0].position.y)]
+				for i in range (len (people_location_array)):
+					people.append((people_location_array[i].position.x,people_location_array[i].position.y))
+				#plt.scatter(*zip(*people),color='red')
+				k = 1
+				h = .02
+
+				### Calculate Clusters
+				kmeans = cluster.KMeans(init='k-means++', n_init=10, n_clusters=k)
+				kmeans.fit(np.asarray(people))
+				centroids = kmeans.cluster_centers_	
+				inertia = kmeans.inertia_
+				flag = False
+				while((inertia/len(people))>= 10 or flag == False):
+					k = k+1
+					kmeans = cluster.KMeans(init='k-means++', n_init=10, n_clusters=k)
+					kmeans.fit(np.asarray(people))
+					centroids_temp = kmeans.cluster_centers_
+					labels = kmeans.labels_
+					inertia = kmeans.inertia_
+					flag = True
+				centroids = centroids_temp
+
+
+				### Create clusters using clusters class
+				clusters = []
+				cluster_count = 0
+				for centroid in centroids:
+					cluster_temp = Cluster(centroid[0],centroid[1],0,cluster_count)
+					clusters.append(cluster_temp)
+					cluster_count += 1
+
+				### Calculate which people belong to which clusters
+				points = [[0 for x in range(k-1)] for y in range(len(labels))] 
+				
+				cluster_pred=kmeans.predict(people)
+				for prediction in cluster_pred:
+					clusters[prediction].people += 1
+				
+				for i in range(len(centroids)):
+					for j in range(len(labels)):
+							#print len(metalabels)
+							if(labels[j] == i):
+								#print ("lables[j]: ", labels[j])
+								points[i].append((people[j][0],people[j][1]))
+
+				### Calculate the minimum bounding circles for each cluster
+				circles = []
+				for i in range(k-1):
+					points[i]=filter(lambda a: a != 0, points[i])					
+					circles.append(make_circle(points[i][:]))
+				#print len(points[0])+len(points[1])
+				# Plot the centroids
+				circles_plot=[]	
+				for i in range(len(circles)):
+					#print circles[i]
+					circles_plot.append(plt.Circle((circles[i][0],circles[i][1]),circles[i][2], facecolor='none', linewidth=3))
+
+				### Calculate Metaclusters
+				k = number_boats
+				kmeans = cluster.KMeans(init='k-means++', n_init=10, n_clusters=k)
+				kmeans.fit(centroids)
+				metacentroids = kmeans.cluster_centers_	
+				metainertia = kmeans.inertia_
+				metalabels = kmeans.labels_
+
+				number_people_metaclusters= np.zeros(len(metacentroids))
+				metacluster_pred=kmeans.predict(centroids)
+				for prediction in metacluster_pred:
+					number_people_metaclusters[prediction] += clusters[prediction].people
+
+				### Create metaclusters using metaclusters class
+				metaclusters = []
+				metacluster_count = 0
+				for metacentroid in metacentroids:
+					metacluster_temp = Metacluster(metacentroid[0],metacentroid[1],cluster_count,0)
+					metaclusters.append(metacluster_temp)
+					metacluster_count += 1
+
+
+				### Calculate which clusters belong to which Metaclusters
+				metapoints = [[0 for x in range(number_boats)] for y in range(len(metalabels))] 
+				temp_arr = []
+				for clust in clusters:
+					temp = (clust.x,clust.y)
+					temp_arr.append(temp)
+
+				metacluster_pred=kmeans.predict(temp_arr)
+				for index, prediction in enumerate(metacluster_pred):
+					metaclusters[prediction].people += clusters[index].people
+
+				for i in range(len(metacentroids)):
+					for j in range(len(metalabels)):
+							#print len(metalabels)
+							if(metalabels[j] == i):
+								#number_people_metaclusters[i] += number_people_clusters[i]
+								#print ("lables[j]: ", labels[j])
+								metapoints[i].append((centroids[j][0],centroids[j][1]))
+
+
+				### Calculate minimum bounding circles for each metacluster
+				metacircles = []
+				for i in range(number_boats):
+					metapoints[i]=filter(lambda a: a != 0, metapoints[i])					
+					metacircles.append(make_circle(metapoints[i][:]))
+				#print len(points[0])+len(points[1])
+				# Plot the centroids
+
+
+
+				### Create metacircles for plotting
+				metacircles_plot=[]	
+				for i in range(len(metacircles)):
+					metacircles_plot.append(plt.Circle((metacircles[i][0],metacircles[i][1]),metacircles[i][2],fill=False,color='red'))
+
+
+				### Create Circles for plotting
+				circles_plot=[]
+				for i in range(len(circles)):
+					circles_plot.append(plt.Circle((circles[i][0],circles[i][1]),circles[i][2], fill=False, lw=1, edgecolor='b'))
+				fig, ax = plt.subplots()
+				plt.title('K-means clustering on the digits dataset (PCA-reduced data)\n'
+						  'Centroids are marked with white cross')
+
+				### Plot Circles and metacircles
+				for i in range(len(metacircles_plot)):
+					ax.add_artist(metacircles_plot[i])
+				for i in range(len(circles_plot)):
+					ax.add_artist(circles_plot[i])
+
+				### Plot people and cluster centers
+				plt.scatter(*zip(*people), c=labels)
+				plt.scatter(*zip(*centroids),c=np.arange(len(centroids)), marker='x',s=50)
+
+
+				### Perform auction algorithm and plot results
+				auction_output = []
+				count = 0
+				for boat in boats:
+					plt.scatter(boat.x,boat.y,marker='v',s=100, c='g')
+					ax.annotate('%d, %d, %.1f' % (count, boat.capacity, boat.speed), (boat.x-.925,boat.y+2.2), textcoords='data', size = 10)
+					count += 1
+				count = 0
+
+				length = len(metaclusters) - 1
+				sorted = False
+
+				while not sorted:
+					sorted = True
+					for i in range(length):
+				    		if metaclusters[i].people < metaclusters[i+1].people:
+							sorted = False
+							metaclusters[i], metaclusters[i+1] = metaclusters[i+1], metaclusters[i]
+
+
+
+				for index,metacluster in enumerate(metaclusters):
+					score_array = []
+					for boat in boats:
+						trips_needed = math.ceil(metacluster.people/boat.capacity)
+						init_dist = distance(boat.x,boat.y,metacluster.x,metacluster.y)
+						mothership_dist = distance(-60,-60,metacluster.x,metacluster.y)
+						score = trips_needed*(mothership_dist/boat.speed) + (init_dist/boat.speed)
+						score_array.append(score)
+					min_value = min(score_array)
+					min_index = score_array.index(min_value)
+					boats[min_index].x = 9999999
+					boats[min_index].y = 9999999
+					auction_output.append(min_index)
+					ax.annotate('%d, %d' % (min_index, metaclusters[index].people) , (metacluster.x,metacluster.y), textcoords='data', size = 35)
+					count += 1
+			print auction_output
+
+			plt.show()
+			
+			
+			
+	except rospy.ROSInterruptException: pass
+

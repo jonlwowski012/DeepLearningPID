@@ -1,0 +1,114 @@
+<?xml version="1.0"?>
+
+<launch>
+ 
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+     <arg name="world_name" value="$(find cooperative_mav_asv)/worlds/boat_world.world"/>
+     <arg name="gui" value="false"/> 
+     <arg name="headless" value="true" />
+  </include>
+
+  <arg name="model" default="$(find hector_quadrotor_description)/urdf/quadrotor.gazebo.xacro" />
+   <!-- workaround https://github.com/ros-simulation/gazebo_ros_pkgs/pull/134 -->
+   <!-- <param name="robot_description" command="$(find xacro)/xacro.py '$(arg model)'" /> -->
+
+   <group ns="boat1">
+     <include file="$(find cooperative_mav_asv)/launch/boat.gazebo.launch">
+       <arg name="robot_name" value="boat1" />
+       <arg name="robot_position" value="-x 0.0 -y 3.0 -z 0.01" />
+     </include>
+     <node name="boat_tsp" pkg="cooperative_mav_asv" type="universal_boat_service.py" output="screen" />
+   </group>
+
+   <group ns="boat2">
+     <include file="$(find cooperative_mav_asv)/launch/boat.gazebo.launch">
+       <arg name="robot_name" value="boat2" />
+       <arg name="robot_position" value="-x 3.0 -y 0.0 -z 0.01" />
+     </include>
+     <node name="boat_tsp" pkg="cooperative_mav_asv" type="universal_boat_service.py" output="log" />
+   </group>
+<!--
+   <group ns="boat3">
+     <include file="$(find cooperative_mav_asv)/launch/boat.gazebo.launch">
+       <arg name="robot_name" value="boat3" />
+       <arg name="robot_position" value="-x -3.0 -y 0.0 -z 0.01" />
+     </include>
+     <node name="boat_tsp" pkg="cooperative_mav_asv" type="universal_boat.py" output="log" />
+   </group>
+-->
+<!--
+   <group ns="boat4">
+     <include file="$(find cooperative_mav_asv)/launch/boat.gazebo.launch">
+       <arg name="robot_name" value="boat4" />
+       <arg name="robot_position" value="-x 0.0 -y -3.0 -z 0.01" />
+     </include>
+     <node name="boat_tsp" pkg="cooperative_mav_asv" type="universal_boat.py" output="log" />
+   </group>
+
+-->
+   <group ns="uav1">
+     <include file="$(find cooperative_mav_asv)/launch/spawn_quadrotor_with_downward_stereo_cam.launch">
+       <arg name="name" value="uav1" />
+       <arg name="tf_prefix" value="uav1" />
+       <arg name="x" value="-55.0" />
+       <arg name="y" value="0.0" />
+       <arg name="z" value="0.02" />
+     </include>
+     <arg name="name" value="uav1" />
+     <node name="mav_search_and_localize" pkg="cooperative_mav_asv" type="universal_mav_search_and_localize.py" output="log"/>
+     <node name="stereo_image_proc" pkg="stereo_image_proc" type="stereo_image_proc"/>
+   </group>
+   
+
+
+   <group ns="uav2">
+     <include file="$(find cooperative_mav_asv)/launch/spawn_quadrotor_with_downward_stereo_cam.launch">
+       <arg name="name" value="uav2" />
+       <arg name="tf_prefix" value="uav2" />
+       <arg name="x" value="-55.0" />
+       <arg name="y" value="-20.0" />
+       <arg name="z" value="0.02" />
+     </include>
+     <arg name="name" value="uav2" />
+     <node name="mav_search_and_localize" pkg="cooperative_mav_asv" type="universal_mav_search_and_localize.py" output="log"/>
+     <node name="stereo_image_proc" pkg="stereo_image_proc" type="stereo_image_proc"/>
+   </group>
+<!--   
+   <group ns="uav3">
+     <include file="$(find cooperative_mav_asv)/launch/spawn_quadrotor_with_downward_stereo_cam.launch">
+       <arg name="name" value="uav3" />
+       <arg name="tf_prefix" value="uav3" />
+       <arg name="x" value="-55.0" />
+       <arg name="y" value="20.0" />
+       <arg name="z" value="0.02" />
+     </include>
+     <arg name="name" value="uav3" />
+     <node name="mav_search_and_localize" pkg="cooperative_mav_asv" type="universal_mav_search_and_localize.py" />
+     <node name="stereo_image_proc" pkg="stereo_image_proc" type="stereo_image_proc"/>
+   </group>
+-->
+<!--   
+   <group ns="uav4">
+     <include file="$(find cooperative_mav_asv)/launch/spawn_quadrotor_with_downward_stereo_cam.launch">
+       <arg name="name" value="uav4" />
+       <arg name="tf_prefix" value="uav4" />
+       <arg name="x" value="-55.0" />
+       <arg name="y" value="30.0" />
+       <arg name="z" value="0.02" />
+     </include>
+     <arg name="name" value="uav4" />
+     <node name="mav_search_and_localize" pkg="cooperative_mav_asv" type="universal_mav_search_and_localize.py" />
+     <node name="stereo_image_proc" pkg="stereo_image_proc" type="stereo_image_proc"/>
+   </group>
+-->
+
+   <node name="world_maker" pkg="cooperative_mav_asv" type="world_maker.py" output="log" />
+   <node name="people_location_publisher" pkg="cooperative_mav_asv" type="people_location_publisher.py" output="log" />
+   <node name="universal_people_location_combiner_service" pkg="cooperative_mav_asv" type="universal_people_location_combiner_service.py" output="log" />
+   <node name="cluster_location_service" pkg="cooperative_mav_asv" type="cluster_location_service.py" output="screen"/>
+   <node name="metaclustering_service" pkg="cooperative_mav_asv" type="clusters_of_clusters_service.py" output="screen" />
+   <node name="auction_assignments_service" pkg="cooperative_mav_asv" type="universal_boat_auctioner_service.py" output="screen" />
+   <node name="start_boats" pkg="cooperative_mav_asv" type="start_boats.py" output="log" />
+
+</launch>
+

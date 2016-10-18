@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+
+# Title: Universal people location combiner
+# Description: Combines all the locations of people detected by all the MAVs
+# Engineer: Jonathan Lwowski 
+# Email: jonathan.lwowski@gmail.com
+# Lab: Autonomous Controls Lab, The University of Texas at San Antonio
+
+
+#########          Libraries         ###################
+import sys
+from std_msgs.msg import String
+from std_msgs.msg import Header
+import rospy
+import math
+import numpy as np
+import time
+from gazebo_msgs.msg import ModelStates
+from geometry_msgs.msg import PoseArray
+from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import Quaternion
+from cooperative_mav_asv.srv import *
+
+
+###### Global Variables   #####################
+cluster_location_array = []
+people_location_array = []
+list_of_topics = []
+
+def peoplelocationCallback(data):
+	global people_location_array
+	for i in range(len(data.poses)):
+		memory_flag = False
+		for j in range(len(people_location_array)):
+			if(data.poses[i] == people_location_array[j]):
+				memory_flag = True				
+				break
+		if(memory_flag == False):
+			people_location_array.append(data.poses[i])
+		
+
+def people_location_sub_all():
+	global list_of_topics
+	topics = rospy.get_published_topics()
+        for i in range(len(topics)):
+            if ("image_tf" in topics[i][0]) and (topics[i][0] not in list_of_topics) :
+		list_of_topics.append(topics[i][0])
+                rospy.Subscriber(topics[i][0],PoseArray,peoplelocationCallback)
+	
+ 
+
+def handle_peoplelocations(req):
+	global people_location_array	
+	### Init Variables
+	pose_array = PoseArray()
+	pose_array.header.stamp = rospy.Time.now()
+	pose_array.header.frame_id = "world"
+	
+	### Subscribe to all the MAVs tf data
+        people_location_sub_all()
+	while(people_location_array == []):
+		#print "waiting"
+		time.sleep(1)
+	time.sleep(2)
+	### Respond using Service Response
+	pose_array.poses = people_location_array
+	time.sleep(2)
+	return PeopleLocationsResponse(pose_array)
+
+def people_location_combiner_service():
+	rospy.init_node('people_location_combiner_service', anonymous=True)
+	print "Starting the people location combiner algorithm"
+	rospy.Service('/people_location_combiner', PeopleLocations, handle_peoplelocations)
+	print "Successfully finished the people location combiner algorithm"
+	rospy.spin()
+    
+if __name__ == '__main__':
+	people_location_combiner_service()
+

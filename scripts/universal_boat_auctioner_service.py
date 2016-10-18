@@ -1,0 +1,135 @@
+#!/usr/bin/env python
+
+# Title: Boat Auctioner
+# Description: Takes Meta-clusters info and boat info and performs auction algorithm
+# Engineer: Jonathan Lwowski 
+# Email: jonathan.lwowski@gmail.com
+# Lab: Autonomous Controls Lab, The University of Texas at San Antonio
+
+
+#########          Libraries         ###################
+import sys
+from std_msgs.msg import String
+from std_msgs.msg import Header
+import rospy
+import math
+import numpy as np
+import time
+from gazebo_msgs.msg import ModelStates
+from geometry_msgs.msg import PoseArray
+from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import Quaternion
+from sklearn import cluster
+from gazebo_msgs.srv import SpawnModel
+from gazebo_msgs.srv import DeleteModel
+import matplotlib.pyplot as plt
+from sklearn import cluster
+from sklearn.decomposition import PCA
+from cooperative_mav_asv.msg import *
+from cooperative_mav_asv.srv import *
+
+######## Global Variables   #####################
+list_of_topics = []
+list_of_params = []
+metaclusters = []
+assigns = []
+
+def boatinfoCallback(data):
+	global boat_info_array
+	#print data
+	boat_info_array.append(data)
+		
+
+def boat_info_sub_all():
+	topics = rospy.get_published_topics()
+        for i in range(len(topics)):
+            if ("boat_auction_info" in topics[i][0]) and (topics[i][0] not in list_of_topics) :
+		list_of_topics.append(topics[i][0])
+                rospy.Subscriber(topics[i][0],BoatAuctionInfo,boatinfoCallback)
+
+def boat_info_params():
+	global lisy_of_params
+	boat_info_array = []
+	params = rospy.get_param_names()
+	for i in range(len(params)):
+		if ("boat_name" in params[i]) and (params[i] not in list_of_params):
+			list_of_params.append(params[i])
+	for i in range(len(list_of_params)):
+		temp = BoatAuctionInfo()
+		if rospy.has_param("boat"+str(i+1)+"/boat_speed"):
+			temp.speed = rospy.get_param("boat"+str(i+1)+"/boat_speed")
+			#print "spped:" ,temp.speed
+			temp.capacity = rospy.get_param("boat"+str(i+1)+"/boat_capacity")
+			temp.boat_name = rospy.get_param("boat"+str(i+1)+"/boat_name")
+			temp.pose.position.x = rospy.get_param("boat"+str(i+1)+"/boat_location_x")
+			temp.pose.position.y = rospy.get_param("boat"+str(i+1)+"/boat_location_y")
+			temp.pose.position.z = rospy.get_param("boat"+str(i+1)+"/boat_location_z")
+			temp.pose.orientation.x = 0
+			temp.pose.orientation.y = 0
+			temp.pose.orientation.z = 0
+			temp.pose.orientation.w = 0
+			boat_info_array.append(temp)
+	#print boat_info_array
+	return boat_info_array
+
+def boat_auction_algorithm(meta_clusters,boat_info_array2):
+	if (boat_info_array2 != [] and meta_clusters != []):
+		final_assignments = AuctionAssignments()
+		final_assignments.auction_assignments = [0,1,2]
+		return final_assignments.auction_assignments
+
+
+
+def handle_auctioning(req):
+	time.sleep(2)
+	global assigns
+	### Init Variables
+	final_assignments = AuctionAssignments() 
+	
+	### subscribe to boat info
+	
+	#print boat_info_array
+	boat_info_array = []
+	while(boat_info_array == []):
+		boat_info_array = boat_info_params()
+		#print "info array: ", boat_info_array
+
+
+	### Get metaclusters using Service
+	print "before meta"
+	metaclusters = call_metaclustering_service_client()
+	print "after meta"
+
+	### Perform auction algorithm
+	auction_assignments = boat_auction_algorithm(metaclusters.metaclusters,boat_info_array)
+
+	### Respond using Service Response
+	final_assignments.auction_assignments = auction_assignments
+	assigns = final_assignments
+	return AuctioningResponse(final_assignments,metaclusters.metaclusters)
+
+def auctioner_service():
+	#global assigns				
+	rospy.init_node('boat_auction_info', anonymous=True)
+	print "Starting the auctioning algorithm"
+	rospy.Service('/auctioning', Auctioning, handle_auctioning)
+	print "Successfully finished the auctioning algorithm"
+	#pub1 = rospy.Publisher('/auction_assignments', AuctionAssignments, queue_size=10)
+	#while not rospy.is_shutdown():
+	#	pub1.publish(assigns)
+	rospy.spin()
+
+def call_metaclustering_service_client():
+	rospy.wait_for_service('/metaclustering')
+	try:
+		metaclusters_service = rospy.ServiceProxy('/metaclustering',MetaClustering)
+		metaclusters_service_response  = metaclusters_service()
+		return metaclusters_service_response
+	except rospy.ServiceException, e:
+        	print "Service call failed: %s"%e
+	
+
+if __name__ == '__main__':
+	auctioner_service()
+	
