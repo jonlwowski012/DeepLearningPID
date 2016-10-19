@@ -11,6 +11,15 @@ This package is used to simulate a deep learning PID controller to track a UGV u
 - hector_quadrotor_gazebo
 - Opencv 
 
+
+## How to Run without viewing in Gazebo
+```
+$ roscore
+$ roslaunch cooperative_mav_asv universal_boat_world_multiple_mav.launch 
+$ rosrun rviz rviz -d ~/catkin_ws/src/cooperative_mav_asv/rviz/rviz_config.rviz 
+
+```
+
 ## How to Run with viewing in Gazebo
 ```
 $ roscore

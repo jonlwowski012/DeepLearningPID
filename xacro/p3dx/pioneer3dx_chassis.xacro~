@@ -17,7 +17,7 @@
         <mesh filename="${meshes}/chassis.stl"/>
       </geometry>
       <material name="ChassisRed">
-        <color rgba="0.038 0.038 0.038 1.0"/>
+        <color rgba="0.851 0.0 0.0 1.0"/>
       </material>
     </visual>
     <collision>
@@ -29,7 +29,7 @@
     <xacro:box_inertial x="0.36" y="0.26"  z="0.18" mass="9.0" />
   </link>
   <gazebo reference="${name}">
-    <material value="Gazebo/Black"/>
+    <material value="Gazebo/Red"/>
   </gazebo>
   
   <!-- Top -->
@@ -39,13 +39,13 @@
     <child link="top"/>
   </joint>
   <link name="top">
-    <visual>
+    <visual name="base_visual">
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry name="top_geom">
         <mesh filename="${meshes}/top.stl"/>
       </geometry>
       <material name="TopBlack">
-        <color rgba="0.038 0.038 0.038 1.0"/>
+        <color rgba="0.851 0.0 0.0 1.0"/>
       </material>
     </visual>
     <collision>
@@ -57,7 +57,7 @@
     <xacro:box_inertial x="0.445" y="0.38"  z="0.01" mass="1.0" />
   </link>
   <gazebo reference="top">
-    <material value="Gazebo/Black"/>
+    <material value="Gazebo/Red"/>
   </gazebo>
   
   </xacro:macro>

@@ -39,12 +39,12 @@
     <child link="top"/>
   </joint>
   <link name="top">
-    <visual>
+    <visual name="base_visual">
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry name="top_geom">
         <mesh filename="${meshes}/top.stl"/>
       </geometry>
-      <material name="TopBlack">
+      <material name="TopRed">
         <color rgba="0.851 0.0 0.0 1.0"/>
       </material>
     </visual>
