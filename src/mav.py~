@@ -22,7 +22,7 @@ from gazebo_msgs.msg import ModelStates
 
 ################  Global Variables    ############################
 uav_location = 0
-
+ugv_center = [-999,-999]
 
 ###########      Camera Functions   ###############################
 class uav_image_red:
@@ -40,6 +40,7 @@ class uav_image_red:
 	except CvBridgeError, e:
 		print e
 	### Start of Image Processing ######
+	(rows,cols,channels) = cv_image.shape
 	hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
 	lower_red = np.array([0,100,100])
 	upper_red = np.array([10,255,255])
@@ -50,16 +51,20 @@ class uav_image_red:
 	contours, _ = cv2.findContours(mask.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1)
 
 	### Filter noise out so you only select actual pink circles
-	centre = 0
+	centre = (-999,-999)
+	global ugv_center
 	for i in range(len(contours)):
+		moments = cv2.moments(contours[i])
 		#print cv2.contourArea(contours[i])
 		max_area = 0
 		
 		if(cv2.contourArea(contours[i]) > max_area):
 			centre = ((int(moments['m10']/moments['m00']), int(moments['m01']/moments['m00'])))
 			max_area = cv2.contourArea(contours[i])
-	print centre
-	#cv2.circle(cv_image,(int(xc_red),int(yc_red)),3,(0,0,255),-1)
+	ugv_center[0] = centre[0] - cols/2
+	ugv_center[1] = centre[1] - rows/2
+	cv2.circle(cv_image,(int(centre[0]),int(centre[1])),3,(0,0,255),-1)
+
 
 	#    #cv2.imshow('Thresholded', mask)
 
@@ -110,7 +115,38 @@ def set_velocity_uav(lx1, ly1, lz1, ax1, ay1, az1):
     hover.angular.z = 0.0
     pub1.publish(command1)
 
-
+def track_ugv_2(time): 
+    global ugv_center
+    
+    D_pitch = 1   
+    Derivator_pitch = 0
+    error_pitch = 0;
+    Kd_pitch = 1
+    Derivator_roll = 0
+    error_roll = 0;
+    Kd_roll = 1
+    I_roll = 0
+    I_pitch = 0
+    for q in range(0, time):
+		print ugv_center
+		constant = uav_location.position.z
+		############## Pitch PID   #####################
+		P_pitch=ugv_center[1]
+		I_pitch += ugv_center[1]
+		error_pitch = ugv_center[1]
+		D_pitch = error_pitch - Derivator_pitch
+		PD_pitch = 0.0055*P_pitch + 0.3*D_pitch + 0.0000001*I_pitch
+		Derivator_pitch = error_pitch
+		Kd_pitch = D_pitch
+		############# Roll PID      ##################### 
+		P_roll= ugv_center[0]
+		I_roll += ugv_center[0]
+		error_roll = ugv_center[0]
+		D_roll = error_roll - Derivator_roll
+		PD_roll = 0.0055*P_roll + 0.3*D_roll + 0.0000001*I_roll
+		Derivator_roll = error_roll
+		Kd_roll = D_roll
+		set_velocity_uav(-PD_pitch, -PD_roll, 0, 0, 0, 0)
 
 if __name__ == '__main__':
 	rospy.init_node('mav', anonymous=True)
@@ -120,7 +156,7 @@ if __name__ == '__main__':
 	try:
 		takeoff_height(6)
 		while(1):
-			a=1
+			track_ugv_2(1000000)
 
 
 

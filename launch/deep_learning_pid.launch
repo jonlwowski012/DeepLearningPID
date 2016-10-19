@@ -18,7 +18,7 @@
    </group>
 
    <group ns="uav">
-     <include file="$(find hector_quadrotor_gazebo)/launch/spawn_quadrotor_with_downward_cam.launch">
+     <include file="$(find DeepLearningPID)/launch/spawn_quadrotor_with_downward_cam.launch">
        <arg name="name" value="uav" />
        <arg name="tf_prefix" value="uav" />
        <arg name="x" value="0.65" />

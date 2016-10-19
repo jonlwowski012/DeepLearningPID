@@ -38,7 +38,7 @@ if __name__ == '__main__':
 	rospy.sleep(5.)
 	try:
 		while(1):
-			lx1 = 0.5
+			lx1 = 1.0
 			az1 = 0.5
 			set_velocity_ugv(lx1, 0, 0, 0, 0, az1)
 			
