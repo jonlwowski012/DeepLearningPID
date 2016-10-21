@@ -12,9 +12,6 @@ import rospy
 from geometry_msgs.msg import Twist 
 
 
-
-
-
 ### UGV Publisher Function ##### 
 
 def set_velocity_ugv(lx1, ly1, lz1, ax1, ay1, az1):   

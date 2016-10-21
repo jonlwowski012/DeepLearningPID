@@ -3,7 +3,7 @@
 # Quadrotor Simulator
 # Jonathan Lwowski 
 # Email: jonathan.lwowski@gmail.com 
-# Unmanned Systems Lab
+# Autonomous Controls Lab 
 # The University of Texas at San Antonio
 
 
@@ -76,29 +76,39 @@ class uav_image_red:
 	except CvBridgeError, e:
 		print e
 
-
+### Callback function for UAV location Subscriber
 def uavCallback(data):
 	global uav_location
 	for i in range(len(data.name)):
 		if "uav" in data.name[i]:
 			uav_location = data.pose[i]
 
+### UAV Location Subscriber Function
 def uav_location_sub():
+	### Subscribe to /gazebo/model_states with a ModelStates Message and a callback of uavCallback
 	rospy.Subscriber("/gazebo/model_states", ModelStates, uavCallback) 
 
-  
+### Function to takeoff UAV to a desired height  
 def takeoff_height(height):
 	global uav_location
+
+	### Check if UAV Location has been recieved 
 	while(uav_location == 0):
-		a=1 
+		a=1
+
+	### While the UAV is lowered than the desired height 
 	while(uav_location.position.z < height):
+		### Call Publisher to move UAV
 		set_velocity_uav(0,0,1.0,0,0,0)
+
+	### Stop UAV at desired height
 	set_velocity_uav(0.0,0,0,0,0,0)	
 
+### UAV Publisher to publish a Twist Message to cmd_vel topic
 def set_velocity_uav(lx1, ly1, lz1, ax1, ay1, az1):   
     pub1 = rospy.Publisher('cmd_vel', Twist, queue_size=10)
 
-    
+    ### Setup twist message
     command1 = Twist()
     command1.linear.x = lx1
     command1.linear.y = ly1
@@ -106,18 +116,16 @@ def set_velocity_uav(lx1, ly1, lz1, ax1, ay1, az1):
     command1.angular.x = ax1
     command1.angular.y = ay1
     command1.angular.z = az1
-    hover = Twist()
-    hover.linear.x = 0.0
-    hover.linear.y = 0.0
-    hover.linear.z = 0.0
-    hover.angular.x = 0.0
-    hover.angular.y = 0.0
-    hover.angular.z = 0.0
+
+    ### Publish the twist message
     pub1.publish(command1)
 
+### Function to track UGV using PID Controller
 def track_ugv_2(time): 
+    ### Get global variable containing location of UGV in UAV's camera
     global ugv_center
-    
+     
+    ### Setup PID initial values 
     D_pitch = 1   
     Derivator_pitch = 0
     error_pitch = 0;
@@ -127,15 +135,16 @@ def track_ugv_2(time):
     Kd_roll = 1
     I_roll = 0
     I_pitch = 0
+ 
+    ### Run PID tracking for desired time
     for q in range(0, time):
 		print ugv_center
-		constant = uav_location.position.z
 		############## Pitch PID   #####################
 		P_pitch=ugv_center[1]
 		I_pitch += ugv_center[1]
 		error_pitch = ugv_center[1]
 		D_pitch = error_pitch - Derivator_pitch
-		PD_pitch = 0.0055*P_pitch + 0.3*D_pitch + 0.0000001*I_pitch
+		PD_pitch = 0.006*P_pitch + 0.4*D_pitch + 0.0000001*I_pitch
 		Derivator_pitch = error_pitch
 		Kd_pitch = D_pitch
 		############# Roll PID      ##################### 
@@ -143,19 +152,32 @@ def track_ugv_2(time):
 		I_roll += ugv_center[0]
 		error_roll = ugv_center[0]
 		D_roll = error_roll - Derivator_roll
-		PD_roll = 0.0055*P_roll + 0.3*D_roll + 0.0000001*I_roll
+		PD_roll = 0.006*P_roll + 0.4*D_roll + 0.0000001*I_roll
 		Derivator_roll = error_roll
 		Kd_roll = D_roll
+
+		### Call UAV Cmd_vel publisher
 		set_velocity_uav(-PD_pitch, -PD_roll, 0, 0, 0, 0)
 
+### Main function to start PID tracking
 if __name__ == '__main__':
+	### Start ROS Node
 	rospy.init_node('mav', anonymous=True)
+
+	### Publish at 50hz
 	r = rospy.Rate(50) # 10hz
+
+	### Subscribe to UAV location
 	uav_location_sub()
+
+	### Subscribe to UAV camera and detect UGV in camera
 	uav_image_red()
 	try:
+		### Take off to desired height
 		takeoff_height(6)
+
 		while(1):
+			### Track UGV using PID Controller
 			track_ugv_2(1000000)
 
 
