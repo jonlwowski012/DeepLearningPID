@@ -2,21 +2,25 @@
 
 <launch>
  
+ 
+  <!-- Starts the Gazebo Simulator with the empty_world world file-->
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
      <arg name="world_name" value="$(find DeepLearningPID)/worlds/empty_world.world"/>
   </include>
 
+  <!-- Finds the model file for the UAV -->
   <arg name="model" default="$(find hector_quadrotor_description)/urdf/quadrotor.gazebo.xacro" />
 
-   <!-- workaround https://github.com/ros-simulation/gazebo_ros_pkgs/pull/134 -->
-   <!-- <param name="robot_description" command="$(find xacro)/xacro.py '$(arg model)'" /> -->
 
+   <!-- Spawns the UGV in the simulation environment -->  
    <group ns="p3dx">
      <include file="$(find DeepLearningPID)/launch/p3dx.gazebo.launch"/>
        <arg name="robot_name" value="p3dx" />
+     <!-- Calls the ugv.py file in the src directory -->   
      <node name="ugv" pkg="DeepLearningPID" type="ugv.py" output="screen" />
    </group>
 
+   <!-- Spawns the MAV in the simulation environment --> 
    <group ns="uav">
      <include file="$(find DeepLearningPID)/launch/spawn_quadrotor_with_downward_cam.launch">
        <arg name="name" value="uav" />
@@ -25,6 +29,7 @@
        <arg name="y" value="1.0" />
        <arg name="z" value="0.01" />
      </include>
+    <!-- Calls the mav.py file in the src directory -->   
 	<node name="mav" pkg="DeepLearningPID" type="mav.py" output="screen" />
    </group>
 
